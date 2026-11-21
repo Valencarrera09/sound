@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="MONO · interactive 3D record collection.">
+  <title>MONO · Record collection</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+  <main>
+    <section id="mono" class="mono" aria-labelledby="mono-titulo">
+      <h1 id="mono-titulo" class="mono__sr-only">MONO · Record collection</h1>
+
+      <div id="escenario" class="mono__escenario" tabindex="0" role="group"
+           aria-roledescription="carrusel de discos"
+           aria-label="Record collection. Arrow keys or Home and End to browse, Space to flip, Enter for details."
+           aria-describedby="meta">
+        <canvas id="fondo" class="mono__fondo" aria-hidden="true"></canvas>
+        <div id="gl" class="mono__gl"></div>
+        <canvas id="particulas" class="mono__particulas" aria-hidden="true"></canvas>
+        <canvas id="trazo" class="mono__trazo" aria-hidden="true"></canvas>
+
+        <div id="river" class="mono__river" aria-hidden="true">
+          <img src="river.jpg" alt="">
+        </div>
+
+        <a id="respaldo" class="mono__respaldo" href="#" hidden target="_blank" rel="noopener" aria-describedby="meta">
+          <img id="respaldo-img" alt="" width="640" height="640">
+        </a>
+      </div>
+
+      <aside id="letra" class="letra" aria-label="Letra de la canción">
+        <p id="letra-hint" class="letra__hint">Seleccioná un disco para escuchar</p>
+        <div id="letra-cabecera" class="letra__cabecera" hidden>
+          <span id="letra-titulo" class="letra__titulo"></span>
+          <span id="letra-artista" class="letra__artista"></span>
+          <span class="letra__barra"><span id="letra-progreso" class="letra__barra-fill"></span></span>
+        </div>
+        <div id="letra-lineas" class="letra__lineas" aria-live="off"></div>
+        <p id="letra-error" class="letra__error" hidden></p>
+      </aside>
+
+      <audio id="audio" autoplay preload="metadata" aria-hidden="true"></audio>
+
+      <div class="mono__ui">
+        <button id="prev" class="mono__btn" type="button" aria-label="Previous record">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <article id="meta" class="mono__meta" aria-live="polite">
+          <p class="mono__contador"><span id="contador">01 / 10</span></p>
+          <p id="detalle" class="mono__detalle" hidden></p>
+        </article>
+
+        <button id="next" class="mono__btn" type="button" aria-label="Next record">
+          <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M9 5l7 7-7 7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+
+        <div class="mono__extras">
+          <div class="mono__audio" role="group" aria-label="Controles de música">
+            <button id="btn-musica" class="mono__audio-btn" type="button" aria-label="Pausar música" aria-pressed="false" title="Pausar música">
+              <svg class="ico-pausa" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <rect x="6.8" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/>
+                <rect x="13.6" y="5" width="3.6" height="14" rx="1.2" fill="currentColor"/>
+              </svg>
+              <svg class="ico-play" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" hidden>
+                <path d="M8 5.2v13.6L19 12z" fill="currentColor"/>
+              </svg>
+            </button>
+
+            <button id="btn-volumen" class="mono__audio-btn" type="button" aria-label="Silenciar" aria-pressed="false" title="Silenciar">
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M4 9.5h3.2L12 5.6v12.8l-4.8-3.9H4z" fill="currentColor"/>
+                <path class="ico-ondas" d="M15.2 9a4.2 4.2 0 0 1 0 6M17.8 6.6a7.6 7.6 0 0 1 0 10.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path class="ico-mudo" d="M15.5 9.5l5 5m0-5l-5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" hidden/>
+              </svg>
+            </button>
+
+            <input id="volumen" class="mono__volumen" type="range" min="0" max="100" value="65" aria-label="Volumen de la música">
+          </div>
+
+          <button id="btn-flip" class="mono__txt" type="button" aria-label="Flip the selected record">Flip</button>
+          <button id="btn-pausa" class="mono__txt" type="button" aria-pressed="false">Pause</button>
+          <button id="btn-replay" class="mono__txt" type="button">Replay</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="three.min.js"></script>
+  <script src="imagenes.js"></script>
+  <script src="canciones.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
