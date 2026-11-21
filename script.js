@@ -6,16 +6,16 @@
 
   /* ---------------------------------------------------------------- datos */
   const DISCOS = [
-    { id: 'jesse',    img: IMAGENES.jesse,    archivo: 'jesse.jpg', cover: true },
-    { id: 'edwar',    img: IMAGENES.edwar,    archivo: 'edwar.jpg' },
-    { id: 'jimypam',  img: IMAGENES.jimypam,  archivo: 'jimypam.jpg' },
-    { id: 'eldiario', img: IMAGENES.eldiario, archivo: 'eldiario.jpg', cover: true },
-    { id: 'sunshine', img: IMAGENES.sunshine, archivo: 'sunshine.jpg', cover: true },
-    { id: 'jyk',      img: IMAGENES.jyk,      archivo: 'jyk.jpg' },
-    { id: 'before',   img: IMAGENES.before,   archivo: 'before.jpg', cover: true },
-    { id: 'her',      img: IMAGENES.her,      archivo: 'her.jpg', cover: true },
-    { id: 'you',      img: IMAGENES.you,      archivo: 'you.jpg', cover: true },
-    { id: '10cosas',  img: IMAGENES['10cosas'], archivo: '10cosas.jpg', cover: true }
+    { id: 'jesse',    img: IMAGENES.jesse,    archivo: 'imagenes/jesse.jpg', cover: true },
+    { id: 'edwar',    img: IMAGENES.edwar,    archivo: 'imagenes/edwar.jpg' },
+    { id: 'jimypam',  img: IMAGENES.jimypam,  archivo: 'imagenes/jimypam.jpg' },
+    { id: 'eldiario', img: IMAGENES.eldiario, archivo: 'imagenes/eldiario.jpg', cover: true },
+    { id: 'sunshine', img: IMAGENES.sunshine, archivo: 'imagenes/sunshine.jpg', cover: true },
+    { id: 'jyk',      img: IMAGENES.jyk,      archivo: 'imagenes/jyk.jpg' },
+    { id: 'before',   img: IMAGENES.before,   archivo: 'imagenes/before.jpg', cover: true },
+    { id: 'her',      img: IMAGENES.her,      archivo: 'imagenes/her.jpg', cover: true },
+    { id: 'you',      img: IMAGENES.you,      archivo: 'imagenes/you.jpg', cover: true },
+    { id: '10cosas',  img: IMAGENES['10cosas'], archivo: 'imagenes/10cosas.jpg', cover: true }
   ];
   const N = DISCOS.length;
 
@@ -168,7 +168,7 @@
     }
     const azar = rng(1000 + i * 97);
     ctx.fillStyle = 'rgba(255,255,255,.055)';
-    for (let n = 0; n < 900; n++) ctx.fillRect(azar() * S, azar() * S, 1, 1);
+    for (let n = 0; n < 400; n++) ctx.fillRect(azar() * S, azar() * S, 1, 1);
 
     const cancion = CANCIONES[i] || {};
     ctx.textAlign = 'center';
@@ -522,7 +522,7 @@
   /* ----------------------------------------------------------- partículas */
   function initParticulas() {
     // Polvillo: muchos puntos mínimos, sueltos y apenas visibles.
-    const cantidad = 260;
+    const cantidad = mobile() ? 150 : 260;
     const azar = rng(7);
     for (let i = 0; i < cantidad; i++) {
       particulas.push({
@@ -540,7 +540,7 @@
 
   function resizeParticulas() {
     const w = Math.max(1, stage.clientWidth), h = Math.max(1, stage.clientHeight);
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, mobile() ? 1.25 : 1.5);
     parteCanvas.width = Math.round(w * dpr);
     parteCanvas.height = Math.round(h * dpr);
     pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -641,7 +641,7 @@
     'float fbm(vec2 p){',
     '  float v = 0.0, a = 0.5;',
     '  mat2 r = mat2(0.8, 0.6, -0.6, 0.8);',
-    '  for (int i = 0; i < 5; i++) {',
+    '  for (int i = 0; i < 4; i++) {',
     '    v += a * noise(p);',
     '    p = r * p * 2.02;',
     '    a *= 0.5;',
@@ -739,13 +739,15 @@
   function resizeFondo() {
     if (!GL) return;
     const w = Math.max(1, stage.clientWidth), h = Math.max(1, stage.clientHeight);
-    fondoCanvas.width = Math.round(w);
-    fondoCanvas.height = Math.round(h);
+    // El agua es suave: se dibuja a menos resolución y el CSS la estira.
+    const factor = Math.min(mobile() ? 0.5 : 0.62, 1280 / w, 900 / h);
+    fondoCanvas.width = Math.max(1, Math.round(w * factor));
+    fondoCanvas.height = Math.max(1, Math.round(h * factor));
     GL.gl.viewport(0, 0, fondoCanvas.width, fondoCanvas.height);
   }
 
   function dibujarFondo(now) {
-    if (!GL || now - GL.ultimo < 30) return;   // ~30 fps
+    if (!GL || now - GL.ultimo < (mobile() ? 40 : 30)) return;  // 25 / 30 fps
     GL.ultimo = now;
     const g = GL.gl;
     g.useProgram(GL.prog);
@@ -895,14 +897,14 @@
   }
 
   function texNormal(THREE, tipo, renderer) {
-    const S = 512;
+    const S = mobile() ? 256 : 512;
     const c = document.createElement('canvas');
     c.width = c.height = S;
     const x = c.getContext('2d');
     x.fillStyle = '#808080'; x.fillRect(0, 0, S, S);
     const r = rng(tipo === 'front' ? 3 : 11);
     if (tipo === 'front') {
-      for (let i = 0; i < 9000; i++) {
+      for (let i = 0; i < 5000; i++) {
         const v = 128 + (r() - 0.5) * 60;
         x.fillStyle = `rgb(${v},${v},${v})`;
         x.fillRect(r() * S, r() * S, 1 + r() * 1.5, 1 + r() * 1.5);
@@ -949,7 +951,7 @@
     x.putImageData(out, 0, 0);
     const t = new THREE.CanvasTexture(c);
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
-    t.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    t.anisotropy = Math.min(mobile() ? 4 : 8, renderer.capabilities.getMaxAnisotropy());
     return t;
   }
 
@@ -1006,7 +1008,7 @@
     const spinPivot = new THREE.Object3D();
     rootObj.add(flipPivot); flipPivot.add(spinPivot);
 
-    const aniso = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+    const aniso = Math.min(mobile() ? 4 : 8, renderer.capabilities.getMaxAnisotropy());
     const tex = new THREE.CanvasTexture(disco.canvas);
     tex.encoding = THREE.sRGBEncoding;
     tex.anisotropy = aniso;
@@ -1051,7 +1053,10 @@
     let renderer;
     try {
       // Fondo transparente para que se vea el agua/luna dibujada en #fondo.
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+      renderer = new THREE.WebGLRenderer({
+        antialias: !mobile(), alpha: true,
+        powerPreference: mobile() ? 'low-power' : 'high-performance'
+      });
     } catch (e) { return activarRespaldo(); }
     if (!renderer.getContext()) return activarRespaldo();
 
@@ -1088,20 +1093,20 @@
     const mats = {
       back: new THREE.MeshPhysicalMaterial({
         color: 0x1a1e2a, roughness: 0.23, metalness: 1, clearcoat: 0.34,
-        iridescence: 1, ior: 1.86, iridescenceIOR: 1.86,
+        iridescence: 0.38, ior: 1.86, iridescenceIOR: 1.86,
         iridescenceThicknessRange: [900, 900], // 900 nm
         normalMap: normalBack, normalScale: new THREE.Vector2(0.5, 0.5)
       }),
       edge: new THREE.MeshStandardMaterial({ color: 0x16161c, roughness: 0.22, metalness: 0.65, side: THREE.DoubleSide }),
       clear: new THREE.MeshPhysicalMaterial({
-        color: 0x1d1d24, roughness: 0.38, transmission: 0.68, thickness: 0.6, ior: 2,
+        color: 0x1d1d24, roughness: 0.38, transmission: 0.28, thickness: 0.35, ior: 2,
         transparent: true, side: THREE.DoubleSide
       }),
       matrix: new THREE.MeshPhysicalMaterial({
         color: 0xffffff, map: matHub, roughness: 0.28, metalness: 0.82, side: THREE.DoubleSide
       }),
       frost: new THREE.MeshPhysicalMaterial({
-        color: 0x22222a, roughness: 0.547, transmission: 0.23, ior: 1.5, thickness: 0.3,
+        color: 0x22222a, roughness: 0.547, transmission: 0.1, ior: 1.5, thickness: 0.2,
         transparent: true, side: THREE.DoubleSide
       })
     };
@@ -1188,12 +1193,18 @@
     world.updateMatrixWorld(true);
   }
 
+  let timerResize = 0;
+  function programarResize() {
+    clearTimeout(timerResize);
+    timerResize = setTimeout(resize, 120);
+  }
+
   function resize() {
     resizeParticulas();
     resizeFondo();
     if (!T) return;
     const w = Math.max(1, stage.clientWidth), h = Math.max(1, stage.clientHeight);
-    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    const dpr = Math.min(window.devicePixelRatio || 1, mobile() ? 1.25 : 1.5);
     T.w = w; T.h = h; T.dpr = dpr;
     T.renderer.setPixelRatio(dpr);
     T.renderer.setSize(w, h, false);
@@ -1573,6 +1584,8 @@
   function destruir() {
     if (raf) cancelAnimationFrame(raf);
     raf = 0;
+    clearTimeout(timerResize);
+    timerResize = 0;
     detenerFade();
     if (musica.raf) cancelAnimationFrame(musica.raf);
     musica.raf = 0;
@@ -1689,7 +1702,7 @@
     };
     mqReduce.addEventListener ? escuchar(mqReduce, 'change', onMq) : mqReduce.addListener(onMq);
 
-    escuchar(window, 'resize', resize);
+    escuchar(window, 'resize', programarResize);
     escuchar(window, 'pagehide', destruir);
     escuchar(document, 'visibilitychange', () => {
       if (!document.hidden) { wake(); iniciarAudioFrame(); }
@@ -1716,7 +1729,7 @@
     limpiezas.push(() => ioVisible.disconnect());
 
     if (window.ResizeObserver) {
-      const ro = new ResizeObserver(() => resize());
+      const ro = new ResizeObserver(programarResize);
       ro.observe(stage);
       limpiezas.push(() => ro.disconnect());
     }
