@@ -96,6 +96,33 @@
     ctx.restore();
   }
 
+  // Surcos concéntricos y micro-rayas casi invisibles. El material con
+  // metalness/clearcoat los refleja como un vinilo sin tapar la fotografía.
+  function texturaVinilo(ctx, S) {
+    const c = S / 2;
+    ctx.save();
+    ctx.lineWidth = 1;
+    for (let r = S * 0.245, k = 0; r < S * 0.49; r += 3, k++) {
+      ctx.strokeStyle = k % 3 === 0 ? 'rgba(255,255,255,.022)' : 'rgba(0,0,0,.026)';
+      ctx.beginPath();
+      ctx.arc(c, c, r, 0, PI * 2);
+      ctx.stroke();
+    }
+    const azar = rng(41);
+    ctx.lineWidth = 0.7;
+    ctx.strokeStyle = 'rgba(255,255,255,.018)';
+    for (let i = 0; i < 24; i++) {
+      const a = azar() * PI * 2;
+      const r0 = S * (0.26 + azar() * 0.16);
+      const len = S * (0.02 + azar() * 0.06);
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(a) * r0, c + Math.sin(a) * r0);
+      ctx.lineTo(c + Math.cos(a) * (r0 + len), c + Math.sin(a) * (r0 + len));
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function textoDorso(ctx, texto, x, y, maxW, lineH, maxLineas) {
     const palabras = String(texto || '').trim().split(/\s+/);
     const lineas = [];
@@ -206,6 +233,7 @@
     try {
       img = await loadImage(disco.img);
       drawFoto(ctx, img, S, disco.cover);
+      texturaVinilo(ctx, S);
     } catch (err) {
       // Nunca sustituir el arte: informar el archivo exacto que falló.
       console.error('No se pudo cargar el arte: ' + disco.archivo, err);
@@ -624,6 +652,7 @@
     'uniform vec2 uRes;',
     'uniform float uTime;',
     'uniform float uNivel;',
+    'uniform vec2 uMoon;',
     'float hash(vec2 p){',
     '  p = fract(p * vec2(123.34, 456.21));',
     '  p += dot(p, p + 45.32);',
@@ -666,7 +695,7 @@
     '  vec3 lunaAzul = vec3(0.300, 0.450, 0.700);',
     '  vec3 col = mix(negro, pizarra, smoothstep(0.22, 0.72, f));',
     '  col = mix(col, lunaAzul, smoothstep(0.60, 0.94, f) * (0.26 + uNivel * 0.14));',
-    '  vec2 moonPos = vec2(0.28 * aspect, 0.30);',
+    '  vec2 moonPos = uMoon;',
     '  float d = length(p - moonPos);',
     '  float disco = 1.0 - smoothstep(0.052, 0.072, d);',
     '  float halo = exp(-d * 4.0) * 0.30;',
@@ -730,6 +759,7 @@
       uRes: gl.getUniformLocation(prog, 'uRes'),
       uTime: gl.getUniformLocation(prog, 'uTime'),
       uNivel: gl.getUniformLocation(prog, 'uNivel'),
+      uMoon: gl.getUniformLocation(prog, 'uMoon'),
       t0: performance.now(), ultimo: 0
     };
     fondoCanvas.dataset.gl = 'ok';
@@ -752,6 +782,9 @@
     const g = GL.gl;
     g.useProgram(GL.prog);
     g.uniform2f(GL.uRes, fondoCanvas.width, fondoCanvas.height);
+    // En escritorio la luna va más arriba para que no la tapen los discos.
+    const aspect = fondoCanvas.width / Math.max(1, fondoCanvas.height);
+    g.uniform2f(GL.uMoon, (mobile() ? 0.28 : 0.18) * aspect, mobile() ? 0.30 : 0.40);
     g.uniform1f(GL.uTime, reduced ? 8 : 8 + (now - GL.t0) / 1000);
     g.uniform1f(GL.uNivel, musica.nivel || 0);
     g.drawArrays(g.TRIANGLES, 0, 3);
@@ -928,6 +961,13 @@
           const dx = xx / S - 0.5, dy = y / S - 0.5;
           const rad = Math.sqrt(dx * dx + dy * dy) * 2;
           v = 0.5 + 0.5 * Math.sin(rad * 3.2) * 0.5 + (r() - 0.5) * 0.04;
+        } else {
+          // Surcos en el relieve, solo en el anillo visible del disco.
+          const dx = xx / S - 0.5, dy = y / S - 0.5;
+          const rad = Math.sqrt(dx * dx + dy * dy);
+          const dentro = clamp((rad - 0.22) / 0.04, 0, 1) *
+                         clamp((0.5 - rad) / 0.04, 0, 1);
+          v = clamp(v + Math.sin(rad * 620) * 0.03 * dentro, 0, 1);
         }
         h[y * S + xx] = v;
       }
@@ -1014,7 +1054,7 @@
     tex.anisotropy = aniso;
     const front = new THREE.MeshPhysicalMaterial({
       map: tex, roughness: 0.42, metalness: 0.48, clearcoat: 0.8,
-      normalMap: normalFront, normalScale: new THREE.Vector2(0.3, 0.3)
+      normalMap: normalFront, normalScale: new THREE.Vector2(0.38, 0.38)
     });
 
     const texBack = new THREE.CanvasTexture(disco.canvasBack);
