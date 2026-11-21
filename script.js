@@ -287,17 +287,23 @@
 
   /* ------------------------------------------------ música / letra / partículas */
   const musica = {
-    audio: $('audio'),
+    audios: [$('audio'), $('audio2')],   // referencias fijas a los dos reproductores
+    audio: $('audio'),                   // puntero al reproductor activo
+    activo: 0,
     actual: null, lineas: [], idx: -1,
     caracteres: [], caracterCantado: -1,
     reproduciendo: false, pausada: false, terminada: false,
     volumen: Number(sliderVol.value) / 100,
     ultimoVolumen: Number(sliderVol.value) / 100 || 0.65,
     raf: 0, ultimo: 0, fadeRaf: 0,
+    fade: null, transicionando: false, autoDisparado: false,
     nivel: 0, picoAnterior: 0, estallido: 0
   };
   const particulas = [];
   let reintentarAudio = false;
+
+  function esAudioActivo(a) { return a === musica.audio; }
+  function audioLibre() { return musica.audios[musica.activo === 0 ? 1 : 0]; }
 
   /* ------------------------------------------------------- letra sincronizada */
   function parsearLRC(texto) {
@@ -430,9 +436,11 @@
   function detenerFade() {
     if (musica.fadeRaf) cancelAnimationFrame(musica.fadeRaf);
     musica.fadeRaf = 0;
+    musica.fade = null;
+    musica.transicionando = false;
   }
 
-  function aplicarCancion(c) {
+  function activarLetra(c) {
     musica.actual = c;
     if (!c.lineas) c.lineas = parsearLRC(c.lrc);
     musica.lineas = c.lineas;
@@ -443,13 +451,35 @@
     pintarLineas(-1);
     pintarBotonMusica();
     if (letraPanel) letraPanel.classList.remove('letra--cambiando');
+  }
 
+  // Cierra un cruce en curso sin animación: el entrante pasa a ser el activo.
+  function cerrarFade() {
+    if (!musica.fade) { detenerFade(); return; }
+    const f = musica.fade;
+    if (musica.fadeRaf) cancelAnimationFrame(musica.fadeRaf);
+    musica.fadeRaf = 0;
+    musica.audio = f.entrante;
+    musica.activo = f.nuevoIndice;
+    musica.audio.volume = musica.volumen;
+    try { f.saliente.pause(); } catch (e) { /* ok */ }
+    f.saliente.volume = 0;
+    musica.fade = null;
+    musica.transicionando = false;
+    activarLetra(f.cancion);
+  }
+
+  function aplicarCancion(c) {
+    cerrarFade();
     const a = musica.audio;
     a.src = c.mp3;
+    a.currentTime = 0;
+    a.volume = musica.volumen;
+    activarLetra(c);
     const p = a.play();
     if (p && typeof p.catch === 'function') {
       p.catch(() => {
-        if (musica.actual !== c) return;
+        if (musica.actual !== c || !esAudioActivo(a)) return;
         musica.reproduciendo = false;
         musica.pausada = true;
         reintentarAudio = true;
@@ -459,11 +489,7 @@
     }
   }
 
-  // Cambio progresivo: baja el tema anterior, entra el nuevo y sube suave.
-  // Un solo <audio> (sin Web Audio): funciona igual con file:// y por servidor.
-  function reproducirCancion(c) {
-    if (!c) return;
-    detenerFade();
+  function prepararCabecera(c) {
     elLetraHint.hidden = true;
     elLetraCab.hidden = false;
     elLetraErr.hidden = true;
@@ -472,28 +498,78 @@
     if (elProgreso) elProgreso.style.width = '0%';
     if (letraPanel) letraPanel.classList.remove('letra--river');
     if (river) river.classList.remove('activo');
-    const a = musica.audio;
-    const cambia = musica.actual && musica.actual !== c && !a.paused;
+  }
+
+  // Cruce real con dos reproductores: el tema nuevo entra antes de que calle
+  // el anterior. Sin Web Audio: funciona igual con file:// y por HTTPS.
+  function reproducirCancion(c) {
+    if (!c) return;
+    cerrarFade();
+    prepararCabecera(c);
+    const saliente = musica.audio;
+    const cambia = musica.actual && musica.actual !== c && !saliente.paused;
+    musica.autoDisparado = false;
     if (!cambia || reduced) {
-      a.volume = musica.volumen;
+      saliente.volume = musica.volumen;
       aplicarCancion(c);
       return;
     }
+
+    const nuevoIndice = musica.activo === 0 ? 1 : 0;
+    const entrante = audioLibre();
+    const v0 = saliente.volume || musica.volumen;
+    const dur = 1200;
+    let fallo = false;
+
+    musica.reproduciendo = true;
+    musica.pausada = false;
+    musica.terminada = false;
+    pintarBotonMusica();
     if (letraPanel) letraPanel.classList.add('letra--cambiando');
-    const v0 = a.volume;
+
+    entrante.src = c.mp3;
+    entrante.currentTime = 0;
+    entrante.volume = 0;
+    const p = entrante.play();
+    if (p && typeof p.catch === 'function') {
+      p.catch(() => {
+        if (fallo) return;
+        fallo = true;
+        if (musica.fadeRaf) cancelAnimationFrame(musica.fadeRaf);
+        musica.fadeRaf = 0;
+        musica.fade = null;
+        musica.transicionando = false;
+        if (letraPanel) letraPanel.classList.remove('letra--cambiando');
+        saliente.volume = v0;
+        entrante.pause();
+        reintentarAudio = true;
+        pintarBotonMusica();
+        mostrarErrorAudio('Tocá en cualquier lugar para activar el sonido.');
+      });
+    }
+
+    const fade = { saliente, entrante, cancion: c, nuevoIndice };
+    musica.fade = fade;
+    musica.transicionando = true;
     const t0 = performance.now();
-    const salida = 340, entrada = 620;
-    let puesto = false;
     const paso = (now) => {
-      const el = now - t0;
-      if (!puesto) {
-        const k = clamp(el / salida, 0, 1);
-        a.volume = v0 * (1 - k);
-        if (k >= 1) { aplicarCancion(c); puesto = true; }
-      } else {
-        const k = clamp((el - salida) / entrada, 0, 1);
-        a.volume = musica.volumen * k;
-        if (k >= 1) { a.volume = musica.volumen; musica.fadeRaf = 0; return; }
+      if (fallo || musica.fade !== fade) return;
+      const k = clamp((now - t0) / dur, 0, 1);
+      const e = k * k * (3 - 2 * k);
+      saliente.volume = v0 * (1 - e);
+      entrante.volume = musica.volumen * e;
+      if (k >= 1) {
+        musica.audio = entrante;
+        musica.activo = nuevoIndice;
+        musica.audio.volume = musica.volumen;
+        saliente.pause();
+        saliente.volume = 0;
+        musica.fadeRaf = 0;
+        musica.fade = null;
+        musica.transicionando = false;
+        activarLetra(c);
+        actualizarLetra();
+        return;
       }
       musica.fadeRaf = requestAnimationFrame(paso);
     };
@@ -506,9 +582,56 @@
     reproducirCancion(CANCIONES[clamp(i, 0, CANCIONES.length - 1)]);
   }
 
+  // Avance natural: selecciona el disco siguiente sin esperar al silencio.
+  function cambiarDiscoAutomatico(i) {
+    if (i === state.target || i < 0 || i >= N) return;
+    state.target = i;
+    if (state.paused || reduced) {
+      state.anim = null; state.sel = i; state.prevSel = i; state.vel = 0;
+    } else {
+      state.anim = { from: state.sel, to: i, t0: state.time, dur: 0.46 };
+    }
+    resetFlips(i);
+    actualizarMeta();
+    reproducirDelDisco(i);
+    if (!reduced && T) {
+      const d = T.discos[i];
+      d.turno = 0;
+      d.turnoAnim = { t: 0, dur: 3.4 };
+    }
+    wake();
+  }
+
+  function vigilarFinal() {
+    if (musica.transicionando || musica.autoDisparado || !musica.reproduciendo) return;
+    const a = musica.audio;
+    if (a.paused) return;
+    const dur = a.duration;
+    if (!isFinite(dur) || dur <= 0) return;
+    if (dur - (a.currentTime || 0) <= 2.2) {
+      musica.autoDisparado = true;
+      cambiarDiscoAutomatico((state.target + 1) % N);
+    }
+  }
+
   function alternarMusica() {
     if (!musica.actual) { reproducirDelDisco(state.target); return; }
     if (musica.terminada) { reproducirCancion(musica.actual); return; }
+    if (musica.fade) {
+      // Durante el cruce son dos audios: pausar/reanudar ambos juntos.
+      const pausar = !musica.pausada;
+      [musica.fade.saliente, musica.fade.entrante].forEach((a) => {
+        if (pausar) a.pause();
+        else {
+          const p = a.play();
+          if (p && typeof p.catch === 'function') p.catch(() => {});
+        }
+      });
+      musica.pausada = pausar;
+      musica.reproduciendo = !pausar;
+      pintarBotonMusica();
+      return;
+    }
     const a = musica.audio;
     if (a.paused) {
       const p = a.play();
@@ -805,6 +928,7 @@
     leerNivelAudio(dt);
     dibujarParticulas(dt, musica.nivel, musica.estallido);
     actualizarLetra();
+    vigilarFinal();
     musica.raf = requestAnimationFrame(frameAudio);
   }
 
@@ -1629,11 +1753,13 @@
     detenerFade();
     if (musica.raf) cancelAnimationFrame(musica.raf);
     musica.raf = 0;
-    try {
-      musica.audio.pause();
-      musica.audio.removeAttribute('src');
-      musica.audio.load();
-    } catch (e) { /* ok */ }
+    musica.audios.forEach((a) => {
+      try {
+        a.pause();
+        a.removeAttribute('src');
+        a.load();
+      } catch (e) { /* ok */ }
+    });
     musica.reproduciendo = false;
     limpiezas.forEach((f) => { try { f(); } catch (e) { /* ok */ } });
     limpiezas.length = 0;
@@ -1672,28 +1798,37 @@
     pintarBotonMusica();
     pintarBotonVolumen();
     musica.audio.volume = musica.volumen;
+    musica.audios[1].volume = 0;
     iniciarAudioFrame();
 
-    escuchar(musica.audio, 'play', () => {
-      musica.reproduciendo = true;
-      musica.pausada = false;
-      musica.terminada = false;
-      pintarBotonMusica();
-      wake();
-    });
-    escuchar(musica.audio, 'pause', () => {
-      musica.reproduciendo = false;
-      musica.pausada = true;
-      pintarBotonMusica();
-    });
-    escuchar(musica.audio, 'ended', () => {
-      musica.reproduciendo = false;
-      musica.pausada = true;
-      musica.terminada = true;
-      pintarBotonMusica();
-    });
-    escuchar(musica.audio, 'error', () => {
-      mostrarErrorAudio('No se pudo cargar el MP3: ' + (musica.actual ? musica.actual.mp3 : 'audio'));
+    musica.audios.forEach((a) => {
+      escuchar(a, 'play', () => {
+        if (!esAudioActivo(a)) return;
+        musica.reproduciendo = true;
+        musica.pausada = false;
+        musica.terminada = false;
+        pintarBotonMusica();
+        wake();
+      });
+      escuchar(a, 'pause', () => {
+        if (!esAudioActivo(a)) return;
+        musica.reproduciendo = false;
+        musica.pausada = true;
+        pintarBotonMusica();
+      });
+      escuchar(a, 'ended', () => {
+        if (!esAudioActivo(a) || musica.transicionando) return;
+        musica.reproduciendo = false;
+        musica.pausada = true;
+        musica.terminada = true;
+        pintarBotonMusica();
+        musica.autoDisparado = true;
+        cambiarDiscoAutomatico((state.target + 1) % N);
+      });
+      escuchar(a, 'error', () => {
+        if (!esAudioActivo(a)) return;
+        mostrarErrorAudio('No se pudo cargar el MP3: ' + (musica.actual ? musica.actual.mp3 : 'audio'));
+      });
     });
     escuchar(river, 'animationend', (e) => {
       if (e.animationName !== 'riverImagen') return;
